@@ -18,19 +18,21 @@ def load_chunk(path):
     for index, row in chunk.iterrows():
         session.run("MERGE (address1:Address {address:{address1}})"
                     "MERGE (address2:Address {address:{address2}})"
-                    "CREATE (address1)-[to:TO {amount:{amount}}]->(address2)", 
-                    {"address1": row[IN_ADDRESS], "address2": row[OUT_ADDRESS], 'amount': row[AMOUNT]})
+                    "CREATE UNIQUE (address1)-[t:Transactions]->(address2)"
+                    "SET t.amount = coalesce(t.amount, 0) + {amount}"
+                    "SET t.number = coalesce(t.number, 0) + 1",
+                    {"address1": row[IN_ADDRESS], "address2": row[OUT_ADDRESS], 'amount': row[AMOUNT]}
     del chunk
     os.remove(path)
     session.close()
 
 print(__name__)
 if __name__ == "__main__":
-	ethereum = pd.read_csv("./transactions.csv", chunksize=100, iterator=True, sep=";", header=0)
-	index = 0
-	for chunk in ethereum:
-	    index += 1
-	    path = './chunks/chunk' + str(index)
-	    chunk.to_csv(path)
-	    load_chunk.delay(path)
-            del chunk
+    ethereum = pd.read_csv("./transactions.csv", chunksize=10000, iterator=True, sep=";", header=0)
+    index = 0
+    for chunk in ethereum:
+        index += 1
+        path = './chunks/chunk' + str(index)
+        chunk.to_csv(path)
+        load_chunk.delay(path)
+        del chunk
